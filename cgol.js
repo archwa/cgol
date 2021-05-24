@@ -260,6 +260,12 @@ window.onload = () => {
 
   resizeCanvas();
 
+  ctx.fillStyle = "white";
+  ctx.font = "30px Arial";
+  ctx.fillText("click somewhere",
+                document.documentElement.clientWidth / 2 - 128,
+                document.documentElement.clientHeight / 2); 
+
   window.addEventListener("resize", resizeCanvas, false);
 };
 
