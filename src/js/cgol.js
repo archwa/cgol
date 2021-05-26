@@ -1,27 +1,32 @@
 // only draw list of diffs (update diffs)
 // keep track of living cells, and eval their neighbors
 
-const mult = 8;
+const mult = 6;
+const freq = 30;
 
-var playing = false;
-var g;
-var ctx;
+var g, ctx;
 
+// Box-Muller (other dists?)
 function randn_bm() {
   var u = 1 - Math.random(), v = 1 - Math.random();
   return Math.abs((Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v ) + 3.5) / 7);
 }
 
 
-class Galois {
+// these versions of add and sub work if only add/sub 1
+// saves a little bit of time
+class Galois1 {
   
   static add(a, b, n) {
-    return (a + b) % n;
+    const sum = a + b;
+    return sum == n ? 0 : sum; // for b = 1
+    //return (a + b) % n; // for all b
   }
 
   static sub(a, b, n) {
     const diff = a - b;
-    return diff < 0 ? (diff % n) + n : diff;
+    return diff == -1 ? diff + n : diff; // for b = 1
+    //return diff < 0 ? (diff % n) + n : diff; // for all b
   }
   
 }
@@ -29,9 +34,9 @@ class Galois {
 class Game {
 
   constructor(w, h, f) { // f is frequency; add window.requestAnimationFrame
-    const freshGrid = Game.makeGrid(w, h);
-    this.grid = freshGrid['grid'];
-    this.living = freshGrid['living'];
+    const { grid, living } = Game.makeGrid(w, h);
+    this.grid = grid;
+    this.living = living;
     this.toVisit = Game.findToVisit(this.grid, this.living);
     this.diffCells = {};  // ['x']['y']
 
@@ -97,33 +102,38 @@ class Game {
   static findToVisit(grid, living) {
     const h = grid.length;
     const w = grid[0].length;
-    let toVisit = {};
+    const visitMap = {};
+    const toVisit = [];
 
-    for(const ky in living) {
-      for(const kx in living[ky]) {
-        const y = parseInt(ky);
-        const x = parseInt(kx);
+    for(let i = 0; i < living.length; i++) {
+      const cell = living[i];
+      const x = cell[0], y = cell[1];
 
-        // partial neighbor indices
-        const left =  Galois.sub(x, 1, w);
-        const right = Galois.add(x, 1, w);
-        const above = Galois.sub(y, 1, h);
-        const below = Galois.add(y, 1, h);
+      // partial neighbor indices
+      const left =  Galois1.sub(x, 1, w);
+      const right = Galois1.add(x, 1, w);
+      const above = Galois1.sub(y, 1, h);
+      const below = Galois1.add(y, 1, h);
 
-        const indices = [
-          [left, above], [x, above], [right, above],
-          [left, y    ], [x, y    ], [right, y    ],
-          [left, below], [x, below], [right, below]
-        ];
+      const indices = [
+        [left, above], [x, above], [right, above],
+        [left,   y  ], [x,   y  ], [right,   y  ],
+        [left, below], [x, below], [right, below]
+      ];
 
-        indices.forEach(i => {
-          if(!toVisit[i[1]]) {
-            toVisit[i[1]] = {};
-          }
-
-          toVisit[i[1]][i[0]] = true;
-        });
-      }
+      // only push indices not yet seen
+      indices.forEach(j => {
+        if(!visitMap[j[1]]) {
+          visitMap[j[1]] = {};
+          visitMap[j[1]][j[0]] = true;
+          toVisit.push(j);
+        }
+        
+        else if(!visitMap[j[1]][j[0]]) {
+          visitMap[j[1]][j[0]] = true;
+          toVisit.push(j);
+        }
+      });
     }
     
     return toVisit;
@@ -131,17 +141,14 @@ class Game {
 
   static makeGrid(w, h) {
     const grid = [];
-    const living = {};
+    const living = [];
 
     for(let j = 0; j < h; j++) { // y
       grid.push([]);
       for(let i = 0; i < w; i++) { // x
         grid[j][i] = randn_bm() - 0.1 >= 0.5 ? 1 : 0;
         if(grid[j][i]) {
-          if(!living[j]) {
-            living[j] = {};
-          }
-          living[j][i] = true;
+          living.push([i, j]);
         }
       }
     }
@@ -159,10 +166,10 @@ class Game {
     const w = grid[0].length;
 
     // partial neighbor indices
-    const left =  Galois.sub(x, 1, w);
-    const right = Galois.add(x, 1, w);
-    const above = Galois.sub(y, 1, h);
-    const below = Galois.add(y, 1, h);
+    const left =  Galois1.sub(x, 1, w);
+    const right = Galois1.add(x, 1, w);
+    const above = Galois1.sub(y, 1, h);
+    const below = Galois1.add(y, 1, h);
 
     // neighbor sum
     return  grid[above][left] + grid[above][x]  + grid[above][right]
@@ -175,34 +182,26 @@ class Game {
   }
 
   static getDiff(grid, toVisit) {
-    let diff = {};
-    let living = {};
+    let diff = [];
+    let living = [];
     
-    for(const ky in toVisit) {
-      for(const kx in toVisit[ky]) {
-        const y = parseInt(ky);
-        const x = parseInt(kx);
+    for(let i = 0; i < toVisit.length; i++) {
+      const cell = toVisit[i];
+      const x = cell[0], y = cell[1];
 
-        const cellState = grid[y][x];
-        const livingNeighbors = Game.getLivingNeighbors(grid, x, y);
+      const cellState = grid[y][x];
+      const livingNeighbors = Game.getLivingNeighbors(grid, x, y);
 
-        const update = (livingNeighbors == 3)
-          || (cellState && (livingNeighbors == 2 || livingNeighbors == 3))
-          ? 1 : 0;
+      const update = (livingNeighbors == 3)
+        || (cellState && (livingNeighbors == 2 || livingNeighbors == 3))
+        ? 1 : 0;
 
-        if(update) {
-          if(!living[y]) {
-            living[y] = {};
-          }
-          living[y][x] = true;
-        }
+      if(update) {
+        living.push([x, y]);
+      }
 
-        if(grid[y][x] !== update) {
-          if(!diff[y]) {
-            diff[y] = {};
-          }
-          diff[y][x] = update;
-        }
+      if(grid[y][x] !== update) {
+        diff.push([x, y, update]);
       }
     }
     
@@ -214,28 +213,23 @@ class Game {
 
   step() {
     const toVisit = Game.findToVisit(this.grid, this.living);
-    const freshDiff = Game.getDiff(this.grid, toVisit);
-    this.diffCells = freshDiff['diff'];
-    this.living = freshDiff['living'];
+    const { diff, living } = Game.getDiff(this.grid, toVisit);
+    this.diffCells = diff;
+    this.living = living;
 
 
-    for(const y in this.diffCells) {
-      for(const x in this.diffCells[y]) {
-        this.grid[y][x] = this.diffCells[y][x];
-      }
+    for(let i = 0; i < diff.length; i++) {
+      const x = diff[i][0], y = diff[i][1];
+      this.grid[y][x] = diff[i][2];
     }
   }
 
   print() {
-    for(const ky in this.diffCells) {
-      for(const kx in this.diffCells[ky]) {
-        const y = parseInt(ky);
-        const x = parseInt(kx);
-
-        const cellState = this.grid[ky][kx];
-        ctx.fillStyle = !cellState ? "black" : "white";
-        ctx.fillRect(mult*x, mult*y, mult, mult);
-      }
+    for(let i = 0; i < this.diffCells.length; i++) {
+      const x = this.diffCells[i][0], y = this.diffCells[i][1];
+      const cellState = this.grid[y][x];
+      ctx.fillStyle = !cellState ? "black" : "white";
+      ctx.fillRect(mult*x, mult*y, mult, mult);
     }
   }
 
@@ -267,6 +261,7 @@ window.onload = () => {
                 document.documentElement.clientHeight / 2); 
 
   window.addEventListener("resize", resizeCanvas, false);
+  canvas.addEventListener("click", start, false);
 };
 
 function newGame(w, h, f) {
@@ -280,4 +275,8 @@ function newGame(w, h, f) {
 function togglePlay() {
   if(g.isPaused) g.play();
   else g.pause();
+}
+
+function start() {
+  newGame(Math.floor(document.documentElement.clientWidth / mult), Math.floor(document.documentElement.clientHeight / mult), 60);
 }
