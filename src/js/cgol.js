@@ -1,10 +1,13 @@
-// only draw list of diffs (update diffs)
-// keep track of living cells, and eval their neighbors
-
-const mult = 6;
-const freq = 30;
+const mult = 8;
+const freq = 60;
 
 var g, ctx;
+
+// THE sample distribution function
+function sample_dist() {
+  // 0.2 bias to left
+  return Math.random() - 0.2 >= 0.5 ? 1 : 0
+}
 
 // Box-Muller (other dists?)
 function randn_bm() {
@@ -13,8 +16,8 @@ function randn_bm() {
 }
 
 
-// these versions of add and sub work if only add/sub 1
-// saves a little bit of time
+// these versions of add and sub work if only add/sub 1 (save time)
+// for torus topology
 class Galois1 {
   
   static add(a, b, n) {
@@ -31,23 +34,23 @@ class Galois1 {
   
 }
 
-class Game {
+class CGOL {
 
-  constructor(w, h, f) { // f is frequency; add window.requestAnimationFrame
-    const { grid, living } = Game.makeGrid(w, h);
+  constructor(w, h, f) {
+    const { grid, living } = CGOL.makeGrid(w, h);
     this.grid = grid;
     this.living = living;
-    this.toVisit = Game.findToVisit(this.grid, this.living);
-    this.diffCells = {};  // ['x']['y']
+    this.toVisit = CGOL.findToVisit(this.grid, this.living);
+    this.diffCells = [];
 
     this.isStopped = false;
     this.isPaused = true;
     this.setFreq(f);
 
-    for(let j = 0; j < h; j++) { // y
-      for(let i = 0; i < w; i++) { // x
+    for(let j = 0; j < h; j++) {
+      for(let i = 0; i < w; i++) {
         const cellState = this.grid[j][i];
-        ctx.fillStyle = !cellState ? "black" : "white";
+        ctx.fillStyle = cellState ? "#fff" : "#000";
         ctx.fillRect(mult*i, mult*j, mult, mult);
       }
     }
@@ -143,10 +146,10 @@ class Game {
     const grid = [];
     const living = [];
 
-    for(let j = 0; j < h; j++) { // y
+    for(let j = 0; j < h; j++) {
       grid.push([]);
-      for(let i = 0; i < w; i++) { // x
-        grid[j][i] = randn_bm() - 0.1 >= 0.5 ? 1 : 0;
+      for(let i = 0; i < w; i++) {
+        grid[j][i] = sample_dist();
         if(grid[j][i]) {
           living.push([i, j]);
         }
@@ -159,8 +162,6 @@ class Game {
     };
   }
   
-  // assumes valid grid to avoid cycles
-  // sum neighbor values
   static getLivingNeighbors(grid, x, y) {
     const h = grid.length;
     const w = grid[0].length;
@@ -190,7 +191,7 @@ class Game {
       const x = cell[0], y = cell[1];
 
       const cellState = grid[y][x];
-      const livingNeighbors = Game.getLivingNeighbors(grid, x, y);
+      const livingNeighbors = CGOL.getLivingNeighbors(grid, x, y);
 
       const update = (livingNeighbors == 3)
         || (cellState && (livingNeighbors == 2 || livingNeighbors == 3))
@@ -212,8 +213,8 @@ class Game {
   }
 
   step() {
-    const toVisit = Game.findToVisit(this.grid, this.living);
-    const { diff, living } = Game.getDiff(this.grid, toVisit);
+    const toVisit = CGOL.findToVisit(this.grid, this.living);
+    const { diff, living } = CGOL.getDiff(this.grid, toVisit);
     this.diffCells = diff;
     this.living = living;
 
@@ -228,7 +229,7 @@ class Game {
     for(let i = 0; i < this.diffCells.length; i++) {
       const x = this.diffCells[i][0], y = this.diffCells[i][1];
       const cellState = this.grid[y][x];
-      ctx.fillStyle = !cellState ? "black" : "white";
+      ctx.fillStyle = cellState ? "#fff" : "#000";
       ctx.fillRect(mult*x, mult*y, mult, mult);
     }
   }
@@ -256,18 +257,18 @@ window.onload = () => {
 
   ctx.fillStyle = "white";
   ctx.font = "30px Arial";
-  ctx.fillText("click somewhere",
-                document.documentElement.clientWidth / 2 - 128,
+  ctx.fillText("click me",
+                document.documentElement.clientWidth / 2 - 64,
                 document.documentElement.clientHeight / 2); 
 
   window.addEventListener("resize", resizeCanvas, false);
   canvas.addEventListener("click", start, false);
 };
 
-function newGame(w, h, f) {
+function newCGOL(w, h, f) {
   if(g !== undefined) g.stop();
 
-  g = new Game(w, h, f);
+  g = new CGOL(w, h, f);
   g.start();
   g.play();
 }
@@ -278,5 +279,7 @@ function togglePlay() {
 }
 
 function start() {
-  newGame(Math.floor(document.documentElement.clientWidth / mult), Math.floor(document.documentElement.clientHeight / mult), 60);
+  const w = Math.floor(document.documentElement.clientWidth / mult);
+  const h = Math.floor(document.documentElement.clientHeight / mult);
+  newCGOL(w, h, freq);
 }
