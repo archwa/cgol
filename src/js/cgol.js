@@ -1,5 +1,5 @@
 const mult = 8;
-const freq = 60;
+const freq = 24;
 
 var g, ctx;
 
