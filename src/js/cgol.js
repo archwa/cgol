@@ -1,6 +1,6 @@
 // global variables undesirable, should improve
 let CGOLObj, ctx;
-let freq = 60, mult = 6;
+let freq = 60, mult = 8;
 
 function sample_dist() {
   // 0.2 bias to left
