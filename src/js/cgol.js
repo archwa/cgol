@@ -1,6 +1,6 @@
 // global variables undesirable, should improve
 let CGOLObj, ctx;
-let freq = 60, mult = 8;
+let freq = 60, mult = 8, offset = 1;
 
 function sample_dist() {
   // 0.2 bias to left
@@ -20,10 +20,14 @@ class CGOL {
     this.isPaused = true;
     this.setFreq(f);
 
+    ctx.clearRect(0, 0, mult*w, mult*h);
+
+    ctx.fillStyle = "#fff";
     for(let i = 0; i < h; i++) {
       for(let j = 0; j < w; j++) {
-        ctx.fillStyle = this.grid[i][j]["alive"] ? "#fff" : "#000";
-        ctx.fillRect(mult*j, mult*i, mult, mult);
+        if(this.grid[i][j]["alive"]) {
+          ctx.fillRect(mult*j + offset, mult*i + offset, mult - offset, mult - offset);
+        }
       }
     }
   }
@@ -188,10 +192,15 @@ class CGOL {
   }
 
   print() {
+    ctx.fillStyle = "#fff";
     for(let i = 0; i < this.diff.length; i++) {
       const x = this.diff[i]["x"], y = this.diff[i]["y"];
-      ctx.fillStyle = this.diff[i]["alive"] ? "#fff" : "#000";
-      ctx.fillRect(mult*x, mult*y, mult, mult);
+      if(this.diff[i]["alive"]) {
+        ctx.fillRect(mult*x + offset, mult*y + offset, mult - offset, mult - offset);
+      }
+      else {
+        ctx.clearRect(mult*x, mult*y, mult, mult);
+      }
     }
   }
 
